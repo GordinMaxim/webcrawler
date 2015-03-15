@@ -73,6 +73,7 @@ std::set<std::string> extract_links(const std::string& base_url, const std::stri
 
 void reader_routine(WebCrawler *crawler)
 {
+    std::cout << "[READER "<< std::this_thread::get_id() << " start]" << std::endl;
     long timeout = 30;
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -94,14 +95,15 @@ void reader_routine(WebCrawler *crawler)
     Page end_page = {EOU, ""};
     crawler->put_write_page(end_page);
     curl_easy_cleanup(curl);
+    std::cout << "[READER "<< std::this_thread::get_id() << " end]" << std::endl;
 }
 
 void writer_routine(WebCrawler* crawler,
                     std::string dir)
 {
+    std::cout << "[WRITER "<< std::this_thread::get_id() << " start]" << std::endl;
     Page page = crawler->get_write_page();
     while(EOU != page.url) {
-        std::cout << "\t[WRITER]" << std::endl;
         std::string filename = dir + "/page" + std::to_string(crawler->page_id_counter++);
         std::ofstream ofs(filename, std::ofstream::out);
         ofs << "[url " << page.url << "]" << std::endl;
@@ -112,14 +114,17 @@ void writer_routine(WebCrawler* crawler,
     }
     page = {EOU, ""};
     crawler->put_parse_page(page);
+    std::cout << "[WRITER "<< std::this_thread::get_id() << " end]" << std::endl;
 }
 
 void parser_routine(WebCrawler *crawler)
 {
+    std::cout << "[PARSER "<< std::this_thread::get_id() << " start]" << std::endl;
     Page page = crawler->get_parse_page();
     while(EOU != page.url) {
         std::set<std::string> links = extract_links(page.url, page.content);
         crawler->put_url(links);
         page = crawler->get_parse_page();
     }
+    std::cout << "[PARSER "<< std::this_thread::get_id() << " end]" << std::endl;
 }

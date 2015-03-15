@@ -44,22 +44,26 @@ void WebCrawler::start(int readers_num, int parsers_num)
 std::string WebCrawler::get_url()
 {
     if(stop_read.load() || urls_left <= 0) {
+        stop_read.store(true);
+        sem_condvar.notify_all();
         return EOU;
     }
     std::unique_lock<std::mutex> ulock(urls_mutex);
     std::cout << "[get url] curr_urls before == " << curr_urls.size() << std::endl;
     if(curr_urls.empty()) {
+        sem_condvar.wait(ulock, [this]()->bool{ return (stop_read.load() || 0 == semaphore); });
         level--;
-        if(0 == level) {
+        if(0 >= level) {
             stop_read.store(true);
+            sem_condvar.notify_all();
             return EOU;
         }
-        sem_condvar.wait(ulock, [this]()->bool{ return 0 == semaphore; });
         curr_urls.swap(next_urls);
     }
     if(curr_urls.empty()) {
         //дерево закончилось, остаток ненулевой и глубина ненулевая
         stop_read.store(true);
+        sem_condvar.notify_all();
         return EOU;
     }
     std::string url = curr_urls.front();
@@ -87,18 +91,19 @@ void WebCrawler::put_url(const std::set<std::string>& urls)
     std::cout << "[semaphore] before " << semaphore << std::endl;
     semaphore--;
     std::cout << "[semaphore] after " << semaphore << std::endl;
-    sem_condvar.notify_one();
+    sem_condvar.notify_all();
     std::cout << "[put url] next_urls after == " << next_urls.size() << std::endl;
 }
 
 Page WebCrawler::get_parse_page()
 {
+    std::unique_lock<std::mutex> ulock(parse_page_mutex);
+    parse_pages_not_empty.wait(ulock, [this]()->bool{
+                                   return (stop_parse.load() || !parse_pages.empty()); });
     if(stop_parse.load()) {
         Page p = {EOU, ""};
         return p;
     }
-    std::unique_lock<std::mutex> ulock(parse_page_mutex);
-    parse_pages_not_empty.wait(ulock, [this]()->bool{ return !parse_pages.empty(); });
     std::cout << "[get page] pages before == " << parse_pages.size() << std::endl;
     Page page = parse_pages.front();
     parse_pages.pop();
@@ -108,10 +113,12 @@ Page WebCrawler::get_parse_page()
 
 void WebCrawler::put_parse_page(Page page)
 {
+    std::lock_guard<std::mutex> lock(parse_page_mutex);
     if(EOU == page.url) {
         stop_parse.store(true);
+        parse_pages_not_empty.notify_all();
+        return;
     }
-    std::lock_guard<std::mutex> lock(parse_page_mutex);
     std::cout << "[put page] pages before == " << parse_pages.size() << std::endl;
     parse_pages.push(page);
     std::cout << "[put page] pages after == " << parse_pages.size() << std::endl;
@@ -120,12 +127,17 @@ void WebCrawler::put_parse_page(Page page)
 
 Page WebCrawler::get_write_page()
 {
-    if(pages_left <= 0 && stop_write.load()) {
+    std::unique_lock<std::mutex> ulock(write_page_mutex);
+    if(pages_left <= 0) {
         Page p = {EOU, ""};
         return p;
     }
-    std::unique_lock<std::mutex> ulock(write_page_mutex);
-    write_pages_not_empty.wait(ulock, [this]()->bool{ return (!write_pages.empty()); });
+    write_pages_not_empty.wait(ulock, [this]()->bool{
+                                   return (stop_write.load() || !write_pages.empty()); });
+    if(stop_write.load() && write_pages.empty()) {
+        Page p = {EOU, ""};
+        return p;
+    }
     Page page = write_pages.front();
     write_pages.pop();
     pages_left--;
@@ -134,14 +146,19 @@ Page WebCrawler::get_write_page()
 
 void WebCrawler::put_write_page(Page page)
 {
+    std::lock_guard<std::mutex> lock(write_page_mutex);
     if(EOU == page.url) {
         stop_write.store(true);
+        write_pages_not_empty.notify_all();
+        return;
     }
-    std::lock_guard<std::mutex> lock(write_page_mutex);
     write_pages.push(page);
     write_pages_not_empty.notify_one();
 }
 
 WebCrawler::~WebCrawler()
 {
+    readers.clear();
+    parsers.clear();
+    visited_urls.clear();
 }

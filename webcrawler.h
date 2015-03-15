@@ -10,7 +10,7 @@
 #include <condition_variable>
 #include <set>
 
-#define EOU "EOF"
+#define EOU "EOU"
 
 struct Page {
     std::string url;
