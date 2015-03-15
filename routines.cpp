@@ -31,34 +31,6 @@ CURLcode curl_read(CURL* curl, const std::string& url, std::string& buffer, long
     return code;
 }
 
-void reader_routine(WebCrawler *crawler, std::atomic<bool> &stop_flag)
-{
-    long timeout = 30;
-    CURLcode code(CURLE_FAILED_INIT);
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        std::cerr << "curl_easy_init failed" << std::endl;
-        return;
-    }
-
-    while(!stop_flag.load()) {  // мб лишнее (while(1))
-        std::string url = crawler->get_url();
-        if("" == url) {
-            break;
-        }
-        std::string content = "";
-        if(CURLE_OK != curl_read(curl, url, content, timeout)) {
-            content = "failed to load page";
-            std::cerr << "cannot load page with url (" << url << ")" << std::endl;
-        }
-        Page page = {url, content};
-        crawler->put_parse_page(page);
-    }
-
-    curl_easy_cleanup(curl);
-}
-
-
 std::string merge_url(const std::string& head, const std::string& tail)
 {
     if (! tail.empty()) {
@@ -99,41 +71,67 @@ std::set<std::string> extract_links(const std::string& base_url, const std::stri
     return extracted_urls;
 }
 
-void parser_routine(WebCrawler *crawler, std::atomic<bool> &stop_flag, std::atomic<int> &urls_left)
+void reader_routine(WebCrawler *crawler)
 {
-    while(!stop_flag.load()) {
+    long timeout = 30;
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "curl_easy_init failed" << std::endl;
+        return;
+    }
+
+    std::string url;
+    while(EOU != (url = crawler->get_url()))
+    {
+        std::string content = "";
+        if(CURLE_OK != curl_read(curl, url, content, timeout)) {
+            content = "failed to load page";
+            std::cerr << "cannot load page with url (" << url << ")" << std::endl;
+        }
+        Page page = {url, content};
+        crawler->put_write_page(page);
+    }
+    Page end_page = {EOU, ""};
+    crawler->put_write_page(end_page);
+    curl_easy_cleanup(curl);
+}
+
+void writer_routine(WebCrawler* crawler,
+                    std::string dir)
+{
+    Page page = crawler->get_write_page();
+    while(EOU != page.url) {
+        std::cout << "\t[WRITER]" << std::endl;
+        std::string filename = dir + "/page" + std::to_string(crawler->page_id_counter++);
+        std::ofstream ofs(filename, std::ofstream::out);
+        ofs << "[url " << page.url << "]" << std::endl;
+        ofs << page.content;
+        ofs.close();
+        crawler->put_parse_page(page);
+        page = crawler->get_write_page();
+    }
+    page = {EOU, ""};
+    crawler->put_parse_page(page);
+}
+
+void parser_routine(WebCrawler *crawler, std::atomic<int> &urls_left)
+{
+    Page page = crawler->get_parse_page();
+    while(EOU != page.url) {
         if(urls_left <= 0) {
             return;
         }
 
-        Page page = crawler->get_parse_page();
         std::set<std::string> links = extract_links(page.url, page.content);
         int limit = links.size();
         std::cout << "[count] before " << urls_left << std::endl;
         urls_left = urls_left - limit;
         std::cout << "[count] after " << urls_left << std::endl;
         if(urls_left < 0 && std::abs(urls_left) < limit) {
-            stop_flag.store(true);
             limit = limit + urls_left;                  //~ limit -= abs(count)
         }
         std::cout << "\t[PUT_URLS]" << std::endl;
         crawler->put_url(links);
-        crawler->put_write_page(page);
-    }
-}
-
-void writer_routine(WebCrawler* crawler,
-                    std::atomic<bool>& stop_flag,
-                    std::atomic<int>& pages_left,
-                    std::string dir)
-{
-    while(pages_left > 0) {
-        Page page = crawler->get_write_page();
-        std::string filename = dir + "/page" + std::to_string(crawler->page_id_counter++);
-        std::ofstream ofs(filename, std::ofstream::out);
-        ofs << "[url " << page.url << "]" << std::endl;
-        ofs << page.content;
-        ofs.close();
-        pages_left--;
+        page = crawler->get_parse_page();
     }
 }

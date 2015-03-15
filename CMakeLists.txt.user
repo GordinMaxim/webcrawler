@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 3.3.0, 2015-03-11T12:18:02. -->
+<!-- Written by QtCreator 3.3.0, 2015-03-15T13:17:22. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -162,7 +162,7 @@
      <value type="int">14</value>
     </valuelist>
     <value type="QString" key="CMakeProjectManager.CMakeRunConfiguation.Title">WebCrawler</value>
-    <value type="QString" key="CMakeProjectManager.CMakeRunConfiguration.Arguments">http://weather.nsu.ru 3 50 page_dump</value>
+    <value type="QString" key="CMakeProjectManager.CMakeRunConfiguration.Arguments">http://weather.nsu.ru 4 50 page_dump/</value>
     <value type="bool" key="CMakeProjectManager.CMakeRunConfiguration.UseTerminal">false</value>
     <value type="QString" key="CMakeProjectManager.CMakeRunConfiguration.UserWorkingDirectory"></value>
     <value type="int" key="PE.EnvironmentAspect.Base">2</value>

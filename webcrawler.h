@@ -10,6 +10,8 @@
 #include <condition_variable>
 #include <set>
 
+#define EOU "EOF"
+
 struct Page {
     std::string url;
     std::string content;
@@ -34,7 +36,7 @@ public:
 private:
     std::atomic<int> urls_left;
     std::atomic<int> pages_left;
-    unsigned int level;
+    std::atomic<int> level;
     std::string dir;
     std::vector<std::thread> readers;
     std::vector<std::thread> parsers;
@@ -45,7 +47,9 @@ private:
     std::queue<std::string> next_urls;
     std::queue<Page> parse_pages;
     std::queue<Page> write_pages;
-    std::atomic<bool> stop_flag;
+    std::atomic<bool> stop_read;
+    std::atomic<bool> stop_write;
+    std::atomic<bool> stop_parse;
     std::mutex urls_mutex;
     std::mutex parse_page_mutex;
     std::mutex write_page_mutex;
