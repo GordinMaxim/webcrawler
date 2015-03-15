@@ -114,23 +114,11 @@ void writer_routine(WebCrawler* crawler,
     crawler->put_parse_page(page);
 }
 
-void parser_routine(WebCrawler *crawler, std::atomic<int> &urls_left)
+void parser_routine(WebCrawler *crawler)
 {
     Page page = crawler->get_parse_page();
     while(EOU != page.url) {
-        if(urls_left <= 0) {
-            return;
-        }
-
         std::set<std::string> links = extract_links(page.url, page.content);
-        int limit = links.size();
-        std::cout << "[count] before " << urls_left << std::endl;
-        urls_left = urls_left - limit;
-        std::cout << "[count] after " << urls_left << std::endl;
-        if(urls_left < 0 && std::abs(urls_left) < limit) {
-            limit = limit + urls_left;                  //~ limit -= abs(count)
-        }
-        std::cout << "\t[PUT_URLS]" << std::endl;
         crawler->put_url(links);
         page = crawler->get_parse_page();
     }

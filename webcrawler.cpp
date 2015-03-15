@@ -25,7 +25,7 @@ void WebCrawler::start(int readers_num, int parsers_num)
         readers.push_back(std::thread(reader_routine, this));
     }
     for(int i = 0; i < parsers_num; i++) {
-        parsers.push_back(std::thread(parser_routine, this, std::ref(urls_left)));
+        parsers.push_back(std::thread(parser_routine, this));
     }
     std::cout << "Crawling..." << std::endl;
 
@@ -43,7 +43,7 @@ void WebCrawler::start(int readers_num, int parsers_num)
 
 std::string WebCrawler::get_url()
 {
-    if(stop_read.load() && curr_urls.empty()) {
+    if(stop_read.load() || urls_left <= 0) {
         return EOU;
     }
     std::unique_lock<std::mutex> ulock(urls_mutex);
@@ -68,6 +68,7 @@ std::string WebCrawler::get_url()
     semaphore++;
     std::cout << "[semaphore] after " << semaphore << std::endl;
     std::cout << "[get url] curr_urls after == " << curr_urls.size() << std::endl;
+    urls_left--;
     return url;
 }
 
